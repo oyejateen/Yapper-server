@@ -1,0 +1,13 @@
+const mongoose = require('mongoose');
+const PostSchema = new mongoose.Schema({
+  community: { type: mongoose.Schema.Types.ObjectId, ref: 'Community', required: true },
+  author: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  title: { type: String, required: true },
+  content: { type: String, required: true },
+  isAnonymous: { type: Boolean, default: false },
+  likedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  dislikedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  comments: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Comment' }]
+}, { timestamps: true });
+
+module.exports = mongoose.model('Post', PostSchema);
