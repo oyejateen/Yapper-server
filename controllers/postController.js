@@ -7,7 +7,6 @@ exports.createPost = async (req, res) => {
     const { title, content, isAnonymous } = req.body;
     const { communityId } = req.params;
 
-    console.log('Received post data:', { title, content, isAnonymous, communityId });
 
     const post = new Post({
       community: communityId,
@@ -17,13 +16,13 @@ exports.createPost = async (req, res) => {
       isAnonymous
     });
 
-    await post.save();
+    const savedPost = await post.save();
+    console.log('Post saved successfully:', savedPost);
 
-    const community = await Community.findById(communityId);
-    community.posts.push(post._id);
-    await community.save();
+    // Add the post to the community's posts array
+    await Community.findByIdAndUpdate(communityId, { $push: { posts: savedPost._id } });
 
-    res.status(201).json(post);
+    res.status(201).json(savedPost);
   } catch (error) {
     console.error('Error creating post:', error);
     res.status(400).json({ message: 'Error creating post', error: error.message });
@@ -52,7 +51,7 @@ exports.getPost = async (req, res) => {
 
 exports.updatePost = async (req, res) => {
   try {
-    const { title, content } = req.body;
+    const { content } = req.body;
     const post = await Post.findById(req.params.postId);
 
     if (!post) {
@@ -63,25 +62,27 @@ exports.updatePost = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to update this post' });
     }
 
-    post.title = title;
     post.content = content;
     await post.save();
 
     res.json(post);
   } catch (error) {
+    console.error('Error updating post:', error);
     res.status(400).json({ message: 'Error updating post', error: error.message });
   }
 };
 
 exports.deletePost = async (req, res) => {
   try {
+    console.log('Attempting to delete post:', req.params.postId);
     const post = await Post.findById(req.params.postId);
 
     if (!post) {
+      console.log('Post not found:', req.params.postId);
       return res.status(404).json({ message: 'Post not found' });
     }
 
-    if (post.author.toString() !== req.user.id) {
+    if (post.author && post.author.toString() !== req.user.id) {
       return res.status(403).json({ message: 'Not authorized to delete this post' });
     }
 
@@ -90,8 +91,10 @@ exports.deletePost = async (req, res) => {
     // Remove post from community
     await Community.findByIdAndUpdate(post.community, { $pull: { posts: post._id } });
 
+    console.log('Post deleted successfully:', req.params.postId);
     res.json({ message: 'Post deleted successfully' });
   } catch (error) {
+    console.error('Error deleting post:', error);
     res.status(400).json({ message: 'Error deleting post', error: error.message });
   }
 };

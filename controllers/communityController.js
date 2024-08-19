@@ -3,28 +3,29 @@ const Post = require('../models/Post');
 
 exports.createCommunity = async (req, res) => {
   try {
-    console.log('Request body:', req.body);
+    
+    const { name, description, profileImage, bannerImage, isPrivate } = req.body;
 
-    const { name, description, securityQuestion, securityAnswer, profileImage, bannerImage } = req.body;
-
-    if (!name || !description || !securityQuestion || !securityAnswer) {
+    if (!name || !description) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
+
+    const inviteCode = await Community.generateInviteCode();
 
     const community = new Community({
       name,
       description,
       profileImage,
       bannerImage,
-      securityQuestion,
-      securityAnswer,
-      creator: req.user.userId,
-      members: [req.user.userId],
+      isPrivate: isPrivate === 'true',
+      creator: req.user.id,
+      members: [req.user.id],
       location: {
         type: 'Point',
         coordinates: [0, 0] // Default coordinates, update these with actual values when available
       },
-      admin: req.user.userId // Added admin field
+      admin: req.user.id,
+      inviteCode
     });
 
     await community.save();
@@ -48,12 +49,20 @@ exports.getAllCommunities = async (req, res) => {
 
 exports.getCommunity = async (req, res) => {
   try {
-    const community = await Community.findById(req.params.id).populate('posts');
+    const community = await Community.findById(req.params.id)
+      .populate({
+        path: 'posts',
+        options: { sort: { createdAt: -1 } },
+        populate: { path: 'author', select: 'username' }
+      });
+
     if (!community) {
       return res.status(404).json({ message: 'Community not found' });
     }
+
     res.json(community);
   } catch (error) {
+    console.error('Error fetching community:', error);
     res.status(400).json({ message: 'Error fetching community', error: error.message });
   }
 };
@@ -103,12 +112,19 @@ exports.deleteCommunity = async (req, res) => {
     if (!community) {
       return res.status(404).json({ message: 'Community not found' });
     }
+    
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+    
     if (community.admin.toString() !== req.user.id) {
       return res.status(403).json({ message: 'Not authorized to delete this community' });
     }
+    
     await Community.findByIdAndDelete(req.params.id);
     res.json({ message: 'Community deleted successfully' });
   } catch (error) {
+    console.error('Error deleting community:', error);
     res.status(400).json({ message: 'Error deleting community', error: error.message });
   }
 };
@@ -154,5 +170,49 @@ exports.deleteComment = async (req, res) => {
     res.json({ message: 'Comment deleted successfully' });
   } catch (error) {
     res.status(400).json({ message: 'Error deleting comment', error: error.message });
+  }
+};
+
+exports.updateCommunity = async (req, res) => {
+  try {
+    const { name, description } = req.body;
+    const community = await Community.findById(req.params.id);
+
+    if (!community) {
+      return res.status(404).json({ message: 'Community not found' });
+    }
+
+    if (community.admin.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized to update this community' });
+    }
+
+    community.name = name;
+    community.description = description;
+    await community.save();
+
+    res.json(community);
+  } catch (error) {
+    console.error('Error updating community:', error);
+    res.status(400).json({ message: 'Error updating community', error: error.message });
+  }
+};
+
+exports.joinCommunityByInvite = async (req, res) => {
+  try {
+    const { inviteCode } = req.params;
+    const community = await Community.findOne({ inviteCode });
+
+    if (!community) {
+      return res.status(404).json({ message: 'Community not found' });
+    }
+
+    if (!community.members.includes(req.user.id)) {
+      community.members.push(req.user.id);
+      await community.save();
+    }
+
+    res.json({ message: 'Joined community successfully', communityId: community._id });
+  } catch (error) {
+    res.status(400).json({ message: 'Error joining community', error: error.message });
   }
 };
