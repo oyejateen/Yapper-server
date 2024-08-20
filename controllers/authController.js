@@ -30,7 +30,11 @@ exports.login = async (req, res) => {
 };
 
 exports.getCurrentUser = async (req, res) => {
+  console.log('getCurrentUser called, req.user:', req.user);
   try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
     const user = await User.findById(req.user.id).select('-password');
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
