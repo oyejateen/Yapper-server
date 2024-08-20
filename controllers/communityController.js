@@ -1,9 +1,9 @@
 const Community = require('../models/Community');
 const Post = require('../models/Post');
+const User = require('../models/User');
 
 exports.createCommunity = async (req, res) => {
   try {
-    
     const { name, description, profileImage, bannerImage, isPrivate } = req.body;
 
     if (!name || !description) {
@@ -29,6 +29,12 @@ exports.createCommunity = async (req, res) => {
     });
 
     await community.save();
+
+    // Add community to user's communities
+    await User.findByIdAndUpdate(req.user.id, {
+      $addToSet: { communities: community._id }
+    });
+
     res.status(201).json(community);
   } catch (error) {
     console.error('Error creating community:', error);
@@ -39,7 +45,7 @@ exports.createCommunity = async (req, res) => {
 exports.getAllCommunities = async (req, res) => {
   try {
     console.log('Fetching all communities');
-    const communities = await Community.find().select('name description profileImage');
+    const communities = await Community.find().select('name description profileImage bannerImage');
     res.json(communities);
   } catch (error) {
     console.error('Error fetching communities:', error);
@@ -95,13 +101,23 @@ exports.joinCommunity = async (req, res) => {
       return res.status(404).json({ message: 'Community not found' });
     }
     
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+    
     if (!community.members.includes(req.user.id)) {
       community.members.push(req.user.id);
       await community.save();
+      
+      // Update user's communities
+      await User.findByIdAndUpdate(req.user.id, {
+        $addToSet: { communities: community._id }
+      });
     }
     
     res.json({ message: 'Joined community successfully' });
   } catch (error) {
+    console.error('Error joining community:', error);
     res.status(400).json({ message: 'Error joining community', error: error.message });
   }
 };

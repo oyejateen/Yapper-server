@@ -27,6 +27,7 @@ const UserSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  communities: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Community' }],
 });
 
 UserSchema.pre('save', async function (next) {

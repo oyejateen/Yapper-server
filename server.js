@@ -46,7 +46,7 @@ app.use(cors({
 app.use('/api/auth', authRoutes);
 app.use('/api/post', postRoutes);
 app.use('/api/community', (req, res, next) => {
-  if (req.method === 'POST') {
+  if (req.method === 'POST' && req.headers['content-type'].startsWith('multipart/form-data')) {
     const bb = busboy({ headers: req.headers });
     const fields = {};
     const filePromises = [];
@@ -98,7 +98,8 @@ app.use('/api/community', (req, res, next) => {
 
     req.pipe(bb);
   } else {
-    next();
+    // For non-multipart requests, use the built-in JSON parser
+    express.json()(req, res, next);
   }
 }, communityRoutes);
 
