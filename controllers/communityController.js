@@ -44,8 +44,8 @@ exports.createCommunity = async (req, res) => {
 
 exports.getAllCommunities = async (req, res) => {
   try {
-    console.log('Fetching all communities');
-    const communities = await Community.find().select('name description profileImage bannerImage');
+    console.log('Fetching all public communities');
+    const communities = await Community.find({ isPrivate: false }).select('name description profileImage bannerImage');
     res.json(communities);
   } catch (error) {
     console.error('Error fetching communities:', error);
