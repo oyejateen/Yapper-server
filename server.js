@@ -103,7 +103,11 @@ app.use('/api/community', (req, res, next) => {
   }
 }, communityRoutes);
 
-// Use the socketHandler
+app.get('/', (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.status(200).send('ok, alive');
+});
+
 socketHandler(io);
 
 const PORT = process.env.PORT || 5000;
