@@ -4,6 +4,35 @@ const jwt = require('jsonwebtoken');
 exports.signup = async (req, res) => {
   try {
     const { username, email, password } = req.body;
+
+    // Validate username
+    if (username.length < 8 || !/^[a-z0-9]+$/.test(username)) {
+      return res.status(400).json({ message: 'Invalid username format' });
+    }
+
+    // Check if username is already taken
+    const existingUsername = await User.findOne({ username });
+    if (existingUsername) {
+      return res.status(400).json({ message: 'Username is already taken' });
+    }
+
+    // Validate email
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ message: 'Invalid email format' });
+    }
+
+    // Check if email is already in use
+    const existingEmail = await User.findOne({ email });
+    if (existingEmail) {
+      return res.status(400).json({ message: 'Email is already in use' });
+    }
+
+    // Validate password
+    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(password)) {
+      return res.status(400).json({ message: 'Invalid password format' });
+    }
+
     const user = new User({ username, email, password });
     await user.save();
     
@@ -26,15 +55,20 @@ exports.login = async (req, res) => {
       $or: [{ email: emailOrUsername }, { username: emailOrUsername }]
     });
 
-    if (!user || !(await user.comparePassword(password))) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+    if (!user) {
+      return res.status(401).json({ message: 'User not found. Please check your email/username and try again.' });
+    }
+
+    const isPasswordValid = await user.comparePassword(password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: 'Invalid password. Please try again.' });
     }
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1d' });
     res.json({ token, user: { _id: user._id, username: user.username, email: user.email } });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server error. Please try again later.' });
   }
 };
 
