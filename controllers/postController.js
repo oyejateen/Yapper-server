@@ -54,7 +54,7 @@ exports.createPost = async (req, res) => {
           );
         } catch (error) {
           console.error('Error sending push notification to user:', member._id, error);
-          // If the subscription is no longer valid, you might want to remove it
+          // If the subscription is no longer valid, remove it
           if (error.statusCode === 410) {
             await User.findByIdAndUpdate(member._id, { $unset: { pushSubscription: 1 } });
           }

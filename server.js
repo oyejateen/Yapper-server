@@ -110,6 +110,9 @@ app.use('/api/community', (req, res, next) => {
   }
 }, communityRoutes);
 
+const notificationRoutes = require('./routes/notification');
+app.use('/api/notifications', notificationRoutes);
+
 app.get('/', (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
   res.status(200).send('ok, alive');
