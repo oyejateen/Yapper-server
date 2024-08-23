@@ -1,6 +1,24 @@
 const Post = require('../models/Post');
 const Community = require('../models/Community');
 const Comment = require('../models/Comment');
+const webpush = require('web-push');
+const User = require('../models/User');
+const dotenv = require('dotenv');
+
+dotenv.config();
+
+// Configure webpush
+if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
+  console.log(process.env.PORT, process.env.VAPID_PUBLIC_KEY)
+  console.error('VAPID keys are not set in the environment variables');
+  process.exit(1);
+}
+
+webpush.setVapidDetails(
+  'mailto:teenjat2611@gmail.com',
+  process.env.VAPID_PUBLIC_KEY,
+  process.env.VAPID_PRIVATE_KEY
+);
 
 exports.createPost = async (req, res) => {
   try {
@@ -21,6 +39,31 @@ exports.createPost = async (req, res) => {
 
     // Add the post to the community's posts array
     await Community.findByIdAndUpdate(communityId, { $push: { posts: savedPost._id } });
+
+    // Send push notification to community members
+    const community = await Community.findById(communityId).populate('members');
+    const notificationPromises = community.members.map(async (member) => {
+      if (member.pushSubscription) {
+        try {
+          await webpush.sendNotification(
+            member.pushSubscription,
+            JSON.stringify({
+              title: 'New Post in ' + community.name,
+              body: savedPost.title
+            })
+          );
+        } catch (error) {
+          console.error('Error sending push notification to user:', member._id, error);
+          // If the subscription is no longer valid, you might want to remove it
+          if (error.statusCode === 410) {
+            await User.findByIdAndUpdate(member._id, { $unset: { pushSubscription: 1 } });
+          }
+        }
+      }
+    });
+
+    // Wait for all notifications to be sent (or fail)
+    await Promise.all(notificationPromises);
 
     res.status(201).json(savedPost);
   } catch (error) {

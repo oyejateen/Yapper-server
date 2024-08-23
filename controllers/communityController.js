@@ -113,6 +113,13 @@ exports.joinCommunity = async (req, res) => {
       await User.findByIdAndUpdate(req.user.id, {
         $addToSet: { communities: community._id }
       });
+
+      // Check if the user has a push subscription
+      const user = await User.findById(req.user.id);
+      if (!user.pushSubscription) {
+        // If no push subscription, send a flag to the client
+        return res.json({ message: 'Joined community successfully', requestNotification: true });
+      }
     }
     
     res.json({ message: 'Joined community successfully' });
