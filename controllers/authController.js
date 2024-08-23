@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const axios = require('axios');
 
 exports.signup = async (req, res) => {
   try {
@@ -31,6 +32,28 @@ exports.signup = async (req, res) => {
     // Validate password
     if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(password)) {
       return res.status(400).json({ message: 'Invalid password format' });
+    }
+
+    // Validate email using Abstract API
+    const validateEmail = async (email) => {
+      try {
+        const apiKey = process.env.ABSTRACT_API_KEY;
+        if (!apiKey) {
+          throw new Error('Abstract API key is not set in the environment variables');
+        }
+        const response = await axios.get(`https://emailvalidation.abstractapi.com/v1/?api_key=${apiKey}&email=${email}`);
+        return response.data.is_valid_format.value && 
+               response.data.deliverability === "DELIVERABLE" && 
+               !response.data.is_disposable_email.value;
+      } catch (error) {
+        console.error('Error validating email:', error);
+        return false;
+      }
+    };
+
+    const isValidEmail = await validateEmail(email);
+    if (!isValidEmail) {
+      return res.status(400).json({ message: 'Invalid email address or disposable email detected' });
     }
 
     const user = new User({ username, email, password });
