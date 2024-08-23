@@ -13,5 +13,6 @@ router.delete('/:id/post/:postId', authMiddleware, communityController.deletePos
 router.delete('/:id/comment/:commentId', authMiddleware, communityController.deleteComment);
 router.put('/:id', authMiddleware, communityController.updateCommunity);
 router.post('/join/:inviteCode', authMiddleware, communityController.joinCommunityByInvite);
+router.post('/:id/leave', authMiddleware, communityController.leaveCommunity);
 
 module.exports = router;

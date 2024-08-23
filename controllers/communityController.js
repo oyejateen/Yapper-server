@@ -239,3 +239,37 @@ exports.joinCommunityByInvite = async (req, res) => {
     res.status(400).json({ message: 'Error joining community', error: error.message });
   }
 };
+
+exports.leaveCommunity = async (req, res) => {
+  try {
+    const community = await Community.findById(req.params.id);
+    if (!community) {
+      return res.status(404).json({ message: 'Community not found' });
+    }
+    
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+    
+    if (!community.members.includes(req.user.id)) {
+      return res.status(400).json({ message: 'User is not a member of this community' });
+    }
+
+    if (community.admin.toString() === req.user.id) {
+      return res.status(400).json({ message: 'Admin cannot leave the community' });
+    }
+    
+    community.members = community.members.filter(memberId => memberId.toString() !== req.user.id);
+    await community.save();
+    
+    // Remove community from user's communities
+    await User.findByIdAndUpdate(req.user.id, {
+      $pull: { communities: community._id }
+    });
+
+    res.json({ message: 'Left community successfully' });
+  } catch (error) {
+    console.error('Error leaving community:', error);
+    res.status(400).json({ message: 'Error leaving community', error: error.message });
+  }
+};
