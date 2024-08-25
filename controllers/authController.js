@@ -62,6 +62,10 @@ exports.login = async (req, res) => {
       return res.status(401).json({ message: 'User not found. Please check your email/username and try again.' });
     }
 
+    if (user.isGoogleUser && !user.password) {
+      return res.status(401).json({ message: 'This account was created with Google. Please use Google Sign-In.' });
+    }
+
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
       return res.status(401).json({ message: 'Invalid password. Please try again.' });
@@ -175,26 +179,43 @@ exports.googleSignup = async (req, res) => {
 };
 
 exports.googleOneTap = async (req, res) => {
-  const { credential } = req.body;
+  const { token } = req.body;
   try {
-    const ticket = await client.verifyIdToken({
-      idToken: credential,
-      audience: process.env.GOOGLE_CLIENT_ID,
+    const response = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${token}` },
     });
-    const { name, email, picture } = ticket.getPayload();
+    const { sub: googleId, email, name, picture } = response.data;
 
-    let user = await User.findOne({ email });
+    let user = await User.findOne({ $or: [{ googleId }, { email }] });
+    
     if (!user) {
+      // Create a new user if they don't exist
+      let username = name.toLowerCase().replace(/\s+/g, '');
+      let isUnique = false;
+      let counter = 1;
+
+      while (!isUnique) {
+        const existingUser = await User.findOne({ username: `${username}${counter}` });
+        if (!existingUser) {
+          isUnique = true;
+          username = `${username}${counter}`;
+        } else {
+          counter++;
+        }
+      }
+
       user = new User({
-        username: name,
+        username,
         email,
+        googleId,
         profilePicture: picture,
+        isGoogleUser: true
       });
       await user.save();
     }
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1d' });
-    res.json({ token, user: { _id: user._id, username: user.username, email: user.email } });
+    const jwtToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1d' });
+    res.status(200).json({ token: jwtToken, user: { _id: user._id, username: user.username, email: user.email } });
   } catch (error) {
     console.error('Google One Tap error:', error);
     res.status(400).json({ message: 'Google One Tap authentication failed', error: error.message });
