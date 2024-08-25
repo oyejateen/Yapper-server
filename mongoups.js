@@ -1,34 +1,53 @@
 const mongoose = require('mongoose');
+const User = require('./models/User');
 const Community = require('./models/Community');
 require('dotenv').config();
 
-mongoose.connect(process.env.MONGODB_URI, {
+mongoose.connect("mongodb+srv://loli:loli@loli.fqm5x.mongodb.net/", {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 });
 
-async function migrateCommunities() {
+async function findAllUsersWithCommunities() {
   try {
-    const communities = await Community.find({});
-    for (let community of communities) {
-      // Remove security question and answer
-      community.securityQuestion = undefined;
-      community.securityAnswer = undefined;
-
-      // Generate invite code if not present
-      if (!community.inviteCode) {
-        community.inviteCode = await Community.generateInviteCode();
+    const users = await User.find().populate('communities');
+    users.forEach((user, index) => {
+      console.log('User:', JSON.stringify(user, null, 2));
+      console.log('\nCommunities:');
+      user.communities.forEach(community => {
+        console.log(JSON.stringify(community, null, 2));
+      });
+      if (index < users.length - 1) {
+        console.log('\n' + '-'.repeat(50) + '\n');
       }
-
-      await community.save();
-      console.log(`Updated community: ${community._id}`);
-    }
-    console.log('Migration completed');
+    });
+    return users;
   } catch (error) {
-    console.error('Migration error:', error);
-  } finally {
-    mongoose.disconnect();
+    console.error('Error finding users:', error);
   }
 }
 
-migrateCommunities();
+// Commented out deletion code
+/*
+async function deleteUser(userId) {
+  try {
+    // Delete user
+    await User.findByIdAndDelete(userId);
+
+    // Remove user from all communities
+    await Community.updateMany(
+      { members: userId },
+      { $pull: { members: userId } }
+    );
+
+    console.log(`User ${userId} deleted successfully`);
+  } catch (error) {
+    console.error('Error deleting user:', error);
+  }
+}
+*/
+
+// Execute the function
+findAllUsersWithCommunities().then(() => {
+  mongoose.disconnect();
+});

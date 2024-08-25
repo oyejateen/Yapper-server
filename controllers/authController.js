@@ -1,6 +1,8 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
+const { OAuth2Client } = require('google-auth-library');
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 exports.signup = async (req, res) => {
   try {
@@ -32,28 +34,6 @@ exports.signup = async (req, res) => {
     // Validate password
     if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(password)) {
       return res.status(400).json({ message: 'Invalid password format' });
-    }
-
-    // Validate email using Abstract API
-    const validateEmail = async (email) => {
-      try {
-        const apiKey = process.env.ABSTRACT_API_KEY;
-        if (!apiKey) {
-          throw new Error('Abstract API key is not set in the environment variables');
-        }
-        const response = await axios.get(`https://emailvalidation.abstractapi.com/v1/?api_key=${apiKey}&email=${email}`);
-        return response.data.is_valid_format.value && 
-               response.data.deliverability === "DELIVERABLE" && 
-               !response.data.is_disposable_email.value;
-      } catch (error) {
-        console.error('Error validating email:', error);
-        return false;
-      }
-    };
-
-    const isValidEmail = await validateEmail(email);
-    if (!isValidEmail) {
-      return res.status(400).json({ message: 'Invalid email address or disposable email detected' });
     }
 
     const user = new User({ username, email, password });
@@ -109,5 +89,108 @@ exports.getCurrentUser = async (req, res) => {
   } catch (error) {
     console.error('Error fetching current user:', error);
     res.status(500).json({ message: 'Server error' });
+  }
+};
+
+exports.googleLogin = async (req, res) => {
+  const { token } = req.body;
+  try {
+    const ticket = await client.verifyIdToken({
+      idToken: token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const { sub, name, email, picture } = ticket.getPayload();
+
+    let user = await User.findOne({ $or: [{ googleId: sub }, { email }] });
+    if (!user) {
+      // Create a new user if not found
+      user = new User({
+        username: `user_${Math.random().toString(36).substr(2, 9)}`,
+        email,
+        googleId: sub,
+        profilePicture: picture,
+        isGoogleUser: true
+      });
+      await user.save();
+    } else if (!user.isGoogleUser) {
+      // Update existing user with Google info
+      user.googleId = sub;
+      user.isGoogleUser = true;
+      user.profilePicture = picture;
+      await user.save();
+    }
+
+    const jwtToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1d' });
+    res.json({ token: jwtToken, user: { _id: user._id, username: user.username, email: user.email } });
+  } catch (error) {
+    console.error('Google login error:', error);
+    res.status(400).json({ message: 'Google login failed', error: error.message });
+  }
+};
+
+exports.googleSignup = async (req, res) => {
+  const { googleId, email, name, picture } = req.body;
+  try {
+    let user = await User.findOne({ $or: [{ googleId }, { email }] });
+    if (user) {
+      return res.status(400).json({ message: 'User already exists. Please login instead.' });
+    }
+
+    // Generate a unique username
+    let username = name.toLowerCase().replace(/\s+/g, '');
+    let isUnique = false;
+    let counter = 1;
+
+    while (!isUnique) {
+      const existingUser = await User.findOne({ username: `${username}${counter}` });
+      if (!existingUser) {
+        isUnique = true;
+        username = `${username}${counter}`;
+      } else {
+        counter++;
+      }
+    }
+
+    user = new User({
+      username,
+      email,
+      googleId,
+      profilePicture: picture,
+      isGoogleUser: true
+    });
+    await user.save();
+
+    const jwtToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1d' });
+    res.status(201).json({ token: jwtToken, user: { _id: user._id, username: user.username, email: user.email } });
+  } catch (error) {
+    console.error('Google signup error:', error);
+    res.status(400).json({ message: 'Google signup failed', error: error.message });
+  }
+};
+
+exports.googleOneTap = async (req, res) => {
+  const { credential } = req.body;
+  try {
+    const ticket = await client.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const { name, email, picture } = ticket.getPayload();
+
+    let user = await User.findOne({ email });
+    if (!user) {
+      user = new User({
+        username: name,
+        email,
+        profilePicture: picture,
+      });
+      await user.save();
+    }
+
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1d' });
+    res.json({ token, user: { _id: user._id, username: user.username, email: user.email } });
+  } catch (error) {
+    console.error('Google One Tap error:', error);
+    res.status(400).json({ message: 'Google One Tap authentication failed', error: error.message });
   }
 };
