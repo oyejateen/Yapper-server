@@ -129,11 +129,17 @@ exports.googleLogin = async (req, res) => {
 };
 
 exports.googleSignup = async (req, res) => {
-  const { googleId, email, name, picture } = req.body;
+  const { token } = req.body;
   try {
+    const response = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const { sub: googleId, email, name, picture } = response.data;
+
     let user = await User.findOne({ $or: [{ googleId }, { email }] });
     if (user) {
-      return res.status(400).json({ message: 'User already exists. Please login instead.' });
+      const jwtToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1d' });
+      return res.json({ token: jwtToken, user: { _id: user._id, username: user.username, email: user.email } });
     }
 
     // Generate a unique username
