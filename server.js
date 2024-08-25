@@ -26,6 +26,15 @@ webpush.setVapidDetails(
 dotenv.config();
 
 const app = express();
+app.use(cors({
+  origin: process.env.CLIENT_URL,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true
+}));
+app.use((req, res, next) => {
+  console.log(`Received ${req.method} request for ${req.url}`);
+  next();
+});
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
@@ -47,11 +56,6 @@ mongoose.connect(process.env.MONGODB_URI, {
 app.use(express.json());
 
 app.use('/uploads', express.static('uploads'));
-app.use(cors({
-  origin: process.env.CLIENT_URL,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  credentials: true
-}));
 app.use('/api/auth', authRoutes);
 app.use('/api/post', postRoutes);
 app.use('/api/community', (req, res, next) => {
