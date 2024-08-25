@@ -97,38 +97,46 @@ exports.getCurrentUser = async (req, res) => {
 };
 
 exports.googleLogin = async (req, res) => {
-  const { token } = req.body;
+  const { access_token } = req.body;
   try {
-    const ticket = await client.verifyIdToken({
-      idToken: token,
-      audience: process.env.GOOGLE_CLIENT_ID,
+    const response = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${access_token}` },
     });
-    const { sub, name, email, picture } = ticket.getPayload();
+    const { sub: googleId, email, name, picture } = response.data;
 
-    let user = await User.findOne({ $or: [{ googleId: sub }, { email }] });
+    let user = await User.findOne({ $or: [{ googleId }, { email }] });
+    
     if (!user) {
-      // Create a new user if not found
+      // Create a new user if they don't exist
+      let username = name.toLowerCase().replace(/\s+/g, '');
+      let isUnique = false;
+      let counter = 1;
+
+      while (!isUnique) {
+        const existingUser = await User.findOne({ username: `${username}${counter}` });
+        if (!existingUser) {
+          isUnique = true;
+          username = `${username}${counter}`;
+        } else {
+          counter++;
+        }
+      }
+
       user = new User({
-        username: `user_${Math.random().toString(36).substr(2, 9)}`,
+        username,
         email,
-        googleId: sub,
+        googleId,
         profilePicture: picture,
         isGoogleUser: true
       });
       await user.save();
-    } else if (!user.isGoogleUser) {
-      // Update existing user with Google info
-      user.googleId = sub;
-      user.isGoogleUser = true;
-      user.profilePicture = picture;
-      await user.save();
     }
 
     const jwtToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1d' });
-    res.json({ token: jwtToken, user: { _id: user._id, username: user.username, email: user.email } });
+    res.status(200).json({ token: jwtToken, user: { _id: user._id, username: user.username, email: user.email } });
   } catch (error) {
     console.error('Google login error:', error);
-    res.status(400).json({ message: 'Google login failed', error: error.message });
+    res.status(400).json({ message: 'Google authentication failed', error: error.message });
   }
 };
 
@@ -179,12 +187,14 @@ exports.googleSignup = async (req, res) => {
 };
 
 exports.googleOneTap = async (req, res) => {
-  const { token } = req.body;
+  const { credential } = req.body;
   try {
-    const response = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
-      headers: { Authorization: `Bearer ${token}` },
+    const ticket = await client.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
     });
-    const { sub: googleId, email, name, picture } = response.data;
+    const payload = ticket.getPayload();
+    const { sub: googleId, email, name, picture } = payload;
 
     let user = await User.findOne({ $or: [{ googleId }, { email }] });
     
