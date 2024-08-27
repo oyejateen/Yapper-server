@@ -57,6 +57,11 @@ console.log('CORS origin:', process.env.NODE_ENV === 'production' ? process.env.
 
 app.use(express.json());
 
+app.get('/', (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.status(200).send('ok, alive');
+});
+
 app.use('/uploads', express.static('uploads'));
 app.use('/api/auth', authRoutes);
 app.use('/api/post', postRoutes);
@@ -121,10 +126,6 @@ app.use('/api/community', (req, res, next) => {
 const notificationRoutes = require('./routes/notification');
 app.use('/api/notifications', notificationRoutes);
 
-app.get('/', (req, res) => {
-  res.set('Access-Control-Allow-Origin', '*');
-  res.status(200).send('ok, alive');
-});
 
 socketHandler(io);
 
