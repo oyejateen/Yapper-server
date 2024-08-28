@@ -12,5 +12,6 @@ router.post('/:postId/like', authMiddleware, postController.likePost);
 router.post('/:postId/dislike', authMiddleware, postController.dislikePost);
 router.post('/:postId/comment', authMiddleware, commentController.createComment);
 router.delete('/:postId/comment/:commentId', authMiddleware, commentController.deleteComment);
+router.patch('/:postId/pin', authMiddleware, postController.togglePinPost);
 
 module.exports = router;

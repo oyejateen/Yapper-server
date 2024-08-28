@@ -28,9 +28,9 @@ dotenv.config();
 const app = express();
 app.use(cors({
   origin: ['https://yapperapp.xyz', 'http://localhost:3000'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   credentials: true,
-  optionSuccessStatus: 200
+  optionsSuccessStatus: 200
 }));
 app.options('*', cors());
 app.use((req, res, next) => {

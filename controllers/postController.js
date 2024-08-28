@@ -219,3 +219,32 @@ exports.addComment = async (req, res) => {
     res.status(400).json({ message: 'Error adding comment', error: error.message });
   }
 };
+
+exports.togglePinPost = async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const post = await Post.findById(postId);
+
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    const community = await Community.findById(post.community);
+
+    if (!community) {
+      return res.status(404).json({ message: 'Community not found' });
+    }
+
+    if (community.admin.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Only community admin can pin/unpin posts' });
+    }
+
+    post.isPinned = !post.isPinned;
+    await post.save();
+
+    res.json(post);
+  } catch (error) {
+    console.error('Error toggling pin status:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
