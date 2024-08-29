@@ -9,6 +9,7 @@ const path = require('path');
 const fs = require('fs');
 const bodyParser = require('body-parser')
 const authRoutes = require('./routes/auth');
+const chatRoutes = require('./routes/chatRoutes');
 const postRoutes = require('./routes/post');
 const communityRoutes = require('./routes/community');
 const socketHandler = require('./utils/socketHandler');
@@ -67,6 +68,7 @@ app.get('/', (req, res) => {
 });
 
 app.use('/uploads', express.static('uploads'));
+app.use('/api/chat', chatRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/community', communityRoutes);
 app.use('/api/post', (req, res, next) => {
