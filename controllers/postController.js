@@ -4,6 +4,8 @@ const Comment = require('../models/Comment');
 const webpush = require('web-push');
 const User = require('../models/User');
 const dotenv = require('dotenv');
+const cloudinary = require('../config/cloudinary');
+const streamifier = require('streamifier');
 
 dotenv.config();
 
@@ -21,18 +23,57 @@ webpush.setVapidDetails(
 );
 
 exports.createPost = async (req, res) => {
+  console.log('Received request body:', req.body);
+  console.log('Received file:', req.file);
   try {
-    const { title, content, isAnonymous } = req.body;
+    const { title, content, isAnonymous, postType } = req.body;
     const { communityId } = req.params;
+    const userId = req.user.id;
 
+    if (!title) {
+      return res.status(400).json({ message: 'Title is required' });
+    }
 
     const post = new Post({
       community: communityId,
-      author: isAnonymous ? null : req.user.id,
+      author: isAnonymous === 'true' ? null : userId,
       title,
-      content,
-      isAnonymous
+      isAnonymous: isAnonymous === 'true',
+      media: []
     });
+
+    if (postType === 'text') {
+      if (!content) {
+        return res.status(400).json({ message: 'Content is required for text posts' });
+      }
+      post.content = content;
+    } else if (postType === 'media') {
+      if (!req.file) {
+        return res.status(400).json({ message: 'No media file uploaded for media post' });
+      }
+      
+      // Upload file to Cloudinary
+      const uploadPromise = new Promise((resolve, reject) => {
+        const cldUploadStream = cloudinary.uploader.upload_stream(
+          { resource_type: 'auto', folder: 'post_media' },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        );
+
+        streamifier.createReadStream(req.file.buffer).pipe(cldUploadStream);
+      });
+
+      const result = await uploadPromise;
+
+      post.media.push({
+        type: result.resource_type === 'video' ? 'video' : 'image',
+        url: result.secure_url
+      });
+    } else {
+      return res.status(400).json({ message: 'Invalid post type' });
+    }
 
     const savedPost = await post.save();
     console.log('Post saved successfully:', savedPost);
@@ -68,7 +109,7 @@ exports.createPost = async (req, res) => {
     res.status(201).json(savedPost);
   } catch (error) {
     console.error('Error creating post:', error);
-    res.status(400).json({ message: 'Error creating post', error: error.message });
+    res.status(500).json({ message: 'Error creating post', error: error.message, stack: error.stack });
   }
 };
 

@@ -16,6 +16,7 @@ const cloudinary = require('./config/cloudinary');
 console.log('Cloudinary config:', cloudinary.config().cloud_name);
 const { Readable } = require('stream');
 const webpush = require('web-push');
+const multer = require('multer');
 
 webpush.setVapidDetails(
   'mailto:your-email@example.com',
@@ -58,6 +59,7 @@ mongoose.connect(process.env.MONGODB_URI, {
 console.log('CORS origin:', process.env.NODE_ENV === 'production' ? process.env.CLIENT_URL : 'http://localhost:3000');
 
 app.use(express.json());
+const upload = multer({ storage: multer.memoryStorage() });
 
 app.get('/', (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
@@ -66,68 +68,26 @@ app.get('/', (req, res) => {
 
 app.use('/uploads', express.static('uploads'));
 app.use('/api/auth', authRoutes);
-app.use('/api/post', postRoutes);
-app.use('/api/community', (req, res, next) => {
+app.use('/api/community', communityRoutes);
+app.use('/api/post', (req, res, next) => {
+  console.log('Received request for /api/post');
+  console.log('Request method:', req.method);
+  console.log('Content-Type:', req.headers['content-type']);
+
   if (req.method === 'POST' && req.headers['content-type'].startsWith('multipart/form-data')) {
-    const bb = busboy({ headers: req.headers });
-    const fields = {};
-    const filePromises = [];
-
-    bb.on('file', (name, file, info) => {
-      const { filename, encoding, mimeType } = info;
-      
-      if (!mimeType.startsWith('image/')) {
-        return res.status(400).json({ message: 'Only image files are allowed' });
+    upload.single('media')(req, res, (err) => {
+      if (err) {
+        console.error('Error processing file:', err);
+        return res.status(400).json({ message: 'Error processing file', error: err.message });
       }
-
-      const cloudinaryPromise = new Promise((resolve, reject) => {
-        const cloudinaryStream = cloudinary.uploader.upload_stream(
-          { resource_type: 'auto' },
-          (error, result) => {
-            if (error) reject(error);
-            else resolve({ name, url: result.secure_url });
-          }
-        );
-
-        file.pipe(cloudinaryStream);
-      });
-
-      filePromises.push(cloudinaryPromise);
+      console.log('File processed successfully');
+      next();
     });
-
-    bb.on('field', (name, val) => {
-      fields[name] = val;
-    });
-
-    bb.on('close', async () => {
-      try {
-        const uploadedFiles = await Promise.all(filePromises);
-        uploadedFiles.forEach(file => {
-          fields[file.name] = file.url;
-        });
-        req.body = fields;
-        next();
-      } catch (err) {
-        console.error('Error processing form data:', err);
-        res.status(500).json({ message: 'Error processing form data', error: err.message });
-      }
-    });
-
-    bb.on('error', (err) => {
-      console.error('Busboy error:', err);
-      res.status(500).json({ message: 'Error processing form data', error: err.message });
-    });
-
-    req.pipe(bb);
   } else {
-    // For non-multipart requests, use the built-in JSON parser
-    express.json()(req, res, next);
+    console.log('Not a multipart/form-data request, proceeding to next middleware');
+    next();
   }
-}, communityRoutes);
-
-const notificationRoutes = require('./routes/notification');
-app.use('/api/notifications', notificationRoutes);
-
+}, postRoutes);
 
 socketHandler(io);
 
