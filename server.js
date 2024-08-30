@@ -29,7 +29,7 @@ dotenv.config();
 
 const app = express();
 app.use(cors({
-  origin: ['https://yapperapp.xyz', 'http://localhost:3000'],
+  origin: ['https://yapperapp.xyz', 'http://localhost:3000', 'http://192.168.101.166:3000', 'https://yapperapp.onrender.com', 'https://yapperapp.vercel.app'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   credentials: true,
   optionsSuccessStatus: 200
@@ -43,10 +43,10 @@ app.use((req, res, next) => {
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: process.env.NODE_ENV === 'production' 
-      ? 'https://yapperapp.xyz' 
-      : 'http://localhost:3000',
-    methods: ['GET', 'POST']
+    origin: ['https://yapperapp.xyz', 'http://localhost:3000', 'http://192.168.101.166:3000', 'https://yapperapp.onrender.com', 'https://yapperapp.vercel.app'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    credentials: true,
+    optionsSuccessStatus: 200
   }
 });
 
