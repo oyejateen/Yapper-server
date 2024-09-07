@@ -2,9 +2,14 @@ const express = require('express');
 const router = express.Router();
 const communityController = require('../controllers/communityController');
 const authMiddleware = require('../middleware/auth');
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage() });
 
 router.get('/', communityController.getAllCommunities);
-router.post('/', authMiddleware, communityController.createCommunity);
+router.post('/', authMiddleware, upload.fields([
+  { name: 'profileImage', maxCount: 1 },
+  { name: 'bannerImage', maxCount: 1 }
+]), communityController.createCommunity);
 router.get('/user', authMiddleware, communityController.getUserCommunities);
 router.get('/:id', communityController.getCommunity);
 router.post('/:id/join', authMiddleware, communityController.joinCommunity);

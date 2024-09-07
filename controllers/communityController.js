@@ -1,13 +1,38 @@
 const Community = require('../models/Community');
 const Post = require('../models/Post');
 const User = require('../models/User');
+const cloudinary = require('../config/cloudinary');
+const streamifier = require('streamifier');
 
 exports.createCommunity = async (req, res) => {
   try {
-    const { name, description, profileImage, bannerImage, isPrivate } = req.body;
+    const { name, description, isPrivate } = req.body;
 
     if (!name || !description) {
       return res.status(400).json({ message: 'Missing required fields' });
+    }
+
+    const uploadToCloudinary = (file) => {
+      return new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          { resource_type: 'auto', folder: 'community_images' },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result.secure_url);
+          }
+        );
+        streamifier.createReadStream(file.buffer).pipe(uploadStream);
+      });
+    };
+
+    let profileImage, bannerImage;
+
+    if (req.files?.profileImage) {
+      profileImage = await uploadToCloudinary(req.files.profileImage[0]);
+    }
+
+    if (req.files?.bannerImage) {
+      bannerImage = await uploadToCloudinary(req.files.bannerImage[0]);
     }
 
     const inviteCode = await Community.generateInviteCode();
@@ -22,7 +47,7 @@ exports.createCommunity = async (req, res) => {
       members: [req.user.id],
       location: {
         type: 'Point',
-        coordinates: [0, 0] // Default coordinates, update these with actual values when available
+        coordinates: [0, 0]
       },
       admin: req.user.id,
       inviteCode
@@ -30,7 +55,6 @@ exports.createCommunity = async (req, res) => {
 
     await community.save();
 
-    // Add community to user's communities
     await User.findByIdAndUpdate(req.user.id, {
       $addToSet: { communities: community._id }
     });
@@ -38,7 +62,7 @@ exports.createCommunity = async (req, res) => {
     res.status(201).json(community);
   } catch (error) {
     console.error('Error creating community:', error);
-    res.status(500).json({ message: 'Error creating community', error: error.message, stack: error.stack });
+    res.status(500).json({ message: 'Error creating community', error: error.message });
   }
 };
 
