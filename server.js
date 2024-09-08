@@ -9,6 +9,7 @@ const path = require('path');
 const fs = require('fs');
 const bodyParser = require('body-parser')
 const authRoutes = require('./routes/auth');
+const notificationRoutes = require('./routes/notification');
 const chatRoutes = require('./routes/chatRoutes');
 const postRoutes = require('./routes/post');
 const communityRoutes = require('./routes/community');
@@ -43,11 +44,23 @@ app.use((req, res, next) => {
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: ['https://yapperapp.xyz', 'http://localhost:3000', `http://localhost:5173`, 'http://192.168.101.166:3000', 'https://yapperapp.onrender.com', 'https://yapperapp.vercel.app'],
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    credentials: true,
-    optionsSuccessStatus: 200
+    origin: ['https://yapperapp.xyz', 'http://localhost:3000', 'http://localhost:5173', 'http://192.168.101.166:3000', 'https://yapperapp.onrender.com', 'https://yapperapp.vercel.app'],
+    methods: ['GET', 'POST']
   }
+});
+
+app.set('io', io);
+
+io.on('connection', (socket) => {
+  console.log('New client connected');
+
+  socket.on('joinCommunity', (communityId) => {
+    socket.join(communityId);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('Client disconnected');
+  });
 });
 
 mongoose.connect(process.env.MONGODB_URI, {
@@ -71,6 +84,7 @@ app.use('/uploads', express.static('uploads'));
 app.use('/api/chat', chatRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/community', communityRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/post', (req, res, next) => {
   console.log('Received request for /api/post');
   console.log('Request method:', req.method);

@@ -78,26 +78,38 @@ exports.createPost = async (req, res) => {
     const savedPost = await post.save();
     console.log('Post saved successfully:', savedPost);
 
-    // Add the post to the community's posts array
     await Community.findByIdAndUpdate(communityId, { $push: { posts: savedPost._id } });
 
+    // Populate the author information
+    const populatedPost = await Post.findById(savedPost._id).populate('author', 'username');
+
+    // Emit socket event for new post with populated author
+    req.app.get('io').to(communityId).emit('postCreated', populatedPost);
+
     // Send push notification to community members
+    console.log('Sending notifications to community members');
     const community = await Community.findById(communityId).populate('members');
-    const notificationPromises = community.members.map(async (member) => {
-      if (member.pushSubscription) {
+    const notificationPromises = community.members.map(async (memberId) => {
+      const member = await User.findById(memberId);
+      if (member && member.pushSubscription) {
         try {
           await webpush.sendNotification(
             member.pushSubscription,
             JSON.stringify({
-              title: 'New Post in ' + community.name,
-              body: savedPost.title
+              title: `New Post in ${community.name}`,
+              body: savedPost.title,
+              icon: '/logo-yapper-sm.jpg',
+              data: {
+                url: `/community/${community._id}`
+              }
             })
           );
+          console.log(`Notification sent to user ${memberId}`);
         } catch (error) {
-          console.error('Error sending push notification to user:', member._id, error);
-          // If the subscription is no longer valid, remove it
+          console.error(`Error sending push notification to user ${memberId}:`, error);
           if (error.statusCode === 410) {
-            await User.findByIdAndUpdate(member._id, { $unset: { pushSubscription: 1 } });
+            // Subscription has expired or is no longer valid
+            await User.findByIdAndUpdate(memberId, { $unset: { pushSubscription: 1 } });
           }
         }
       }
@@ -105,8 +117,9 @@ exports.createPost = async (req, res) => {
 
     // Wait for all notifications to be sent (or fail)
     await Promise.all(notificationPromises);
+    console.log('All notifications sent or attempted');
 
-    res.status(201).json(savedPost);
+    res.status(201).json(populatedPost);
   } catch (error) {
     console.error('Error creating post:', error);
     res.status(500).json({ message: 'Error creating post', error: error.message, stack: error.stack });
@@ -147,9 +160,12 @@ exports.updatePost = async (req, res) => {
     }
 
     post.content = content;
-    await post.save();
+    const updatedPost = await post.save();
 
-    res.json(post);
+    // Emit socket event for updated post
+    req.app.get('io').to(updatedPost.community.toString()).emit('postUpdated', updatedPost);
+
+    res.json(updatedPost);
   } catch (error) {
     console.error('Error updating post:', error);
     res.status(400).json({ message: 'Error updating post', error: error.message });
@@ -175,6 +191,9 @@ exports.deletePost = async (req, res) => {
     // Remove post from community
     await Community.findByIdAndUpdate(post.community, { $pull: { posts: post._id } });
 
+    // Emit socket event for deleted post
+    req.app.get('io').to(post.community.toString()).emit('postDeleted', req.params.postId);
+
     console.log('Post deleted successfully:', req.params.postId);
     res.json({ message: 'Post deleted successfully' });
   } catch (error) {
@@ -185,7 +204,7 @@ exports.deletePost = async (req, res) => {
 
 exports.likePost = async (req, res) => {
   try {
-    const post = await Post.findById(req.params.postId);
+    const post = await Post.findById(req.params.postId).populate('author', 'username');
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
     }
@@ -214,7 +233,7 @@ exports.likePost = async (req, res) => {
 
 exports.dislikePost = async (req, res) => {
   try {
-    const post = await Post.findById(req.params.postId);
+    const post = await Post.findById(req.params.postId).populate('author', 'username');
     if (!post) {
       return res.status(404).json({ message: 'Post not found' });
     }
