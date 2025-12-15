@@ -35,6 +35,7 @@ app.use(cors({
   credentials: true,
   optionsSuccessStatus: 200
 }));
+app.options('*', cors());
 app.use((req, res, next) => {
   console.log(`Received ${req.method} request for ${req.url}`);
   console.log('Origin:', req.headers.origin);
@@ -49,7 +50,6 @@ const io = socketIo(server, {
 });
 
 app.set('io', io);
-app.options('*', cors());
 io.on('connection', (socket) => {
   console.log('New client connected');
 
@@ -109,5 +109,6 @@ socketHandler(io);
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
 
 
