@@ -29,13 +29,30 @@ webpush.setVapidDetails(
 dotenv.config();
 
 const app = express();
+const allowedOrigins = [
+    'https://yapperapp.xyz', 
+    'http://localhost:3000', 
+    'http://localhost:5173', 
+    'https://yapper-app-vite.vercel.app',
+    'https://yapper-server.vercel.app',
+    'https://yapperapp.onrender.com', 
+    'https://yapperapp.vercel.app'
+];
 app.use(cors({
-  origin: ['https://yapperapp.xyz', 'http://localhost:3000', 'http://localhost:5173', 'https://yapper-app-vite.vercel.app', 'https://yapperapp.onrender.com', 'https://yapperapp.vercel.app'],
+  origin: allowedOrigins,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   credentials: true,
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 204
 }));
-app.options('*', cors());
+app.options('*', (req, res) => {
+    if (allowedOrigins.includes(req.headers.origin)) {
+        res.header('Access-Control-Allow-Origin', req.headers.origin);
+    }
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.sendStatus(204); 
+});
 app.use((req, res, next) => {
   console.log(`Received ${req.method} request for ${req.url}`);
   console.log('Origin:', req.headers.origin);
@@ -44,7 +61,7 @@ app.use((req, res, next) => {
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: ['https://yapperapp.xyz', 'https://yapper-app-vite.vercel.app', 'http://localhost:3000', 'http://localhost:5173', 'http://192.168.101.166:3000', 'https://yapperapp.onrender.com', 'https://yapperapp.vercel.app'],
+    origin: allowedOrigins,
     methods: ['GET', 'POST']
   }
 });
@@ -109,6 +126,7 @@ socketHandler(io);
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
 
 
 
