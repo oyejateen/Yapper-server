@@ -30,7 +30,7 @@ dotenv.config();
 
 const app = express();
 app.use(cors({
-  origin: ['https://yapperapp.xyz', 'http://localhost:3000', 'http://localhost:5173', 'https://yapper-app-vite.vercel.app', 'https://yapperapp.onrender.com', 'https://yapperapp.vercel.app'],
+  origin: ['https://yapperapp.xyz', 'http://localhost:3000', 'http://localhost:5173', 'https://yapper-app-vite.vercel.app/', 'https://yapperapp.onrender.com', 'https://yapperapp.vercel.app'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   credentials: true,
   optionsSuccessStatus: 200
@@ -44,7 +44,7 @@ app.use((req, res, next) => {
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: ['https://yapperapp.xyz', 'http://localhost:3000', 'http://localhost:5173', 'http://192.168.101.166:3000', 'https://yapperapp.onrender.com', 'https://yapperapp.vercel.app'],
+    origin: ['https://yapperapp.xyz', 'https://yapper-app-vite.vercel.app/', 'http://localhost:3000', 'http://localhost:5173', 'http://192.168.101.166:3000', 'https://yapperapp.onrender.com', 'https://yapperapp.vercel.app'],
     methods: ['GET', 'POST']
   }
 });
@@ -110,3 +110,4 @@ socketHandler(io);
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
